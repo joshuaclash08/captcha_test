@@ -8,7 +8,7 @@
 # Build: docker build -t noise-captcha-server .
 # Run:   docker run -p 3000:3000 --env-file server/.env noise-captcha-server
 
-FROM oven/bun:1.1-alpine AS base
+FROM oven/bun:1.3-alpine AS base
 
 WORKDIR /app
 
