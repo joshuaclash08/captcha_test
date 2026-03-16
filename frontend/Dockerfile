@@ -2,7 +2,7 @@
 # Noise CAPTCHA Frontend - Production Dockerfile
 # ══════════════════════════════════════════════════════════════
 
-FROM oven/bun:1.2-alpine AS builder
+FROM oven/bun:1.3.10-alpine AS builder
 
 WORKDIR /app
 
@@ -10,7 +10,7 @@ WORKDIR /app
 COPY package.json bun.lock* ./
 
 # Install dependencies
-RUN bun install
+RUN bun install --frozen-lockfile
 
 # Copy source
 COPY . .
@@ -19,7 +19,7 @@ COPY . .
 RUN bun run build
 
 # ─── Production image ───────────────────────────────────────────
-FROM oven/bun:1.2-alpine AS runner
+FROM oven/bun:1.3.10-alpine AS runner
 
 WORKDIR /app
 
