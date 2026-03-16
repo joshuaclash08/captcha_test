@@ -1,4 +1,4 @@
-version: '3.8'
+version: "3.8"
 
 services:
   redis:
@@ -14,14 +14,16 @@ services:
       dockerfile: Dockerfile
     container_name: captcha-backend
     restart: always
+    networks:
+      - proxy
     environment:
       - NODE_ENV=production
       - PORT=3000
       - REDIS_URL=redis://redis:6379
       - SITE_REGISTRY_PATH=./data/sites.json
       # IMPORTANT: Replace these dummy AES keys with your real 64-character hex keys in production!
-      - AES_KEY_SEED=nc_sk_bce9aa9b19b26436ab605619061d1ec4f15952aba1006c6c86a4754aaf1305a4
-      - AES_KEY_MASK=nc_sk_bce9aa9b19b26436ab605619061d1ec4f15952aba1006c6c86a4754aaf1305a5
+      - AES_KEY_SEED=nc_sk_bce9aa9b19b26456ab605619061d1ec4f15952aba1006c6c86a4754aaf1305a4
+      - AES_KEY_MASK=nc_sk_bce9aa9b19b26456ab605619061d1ec4f15952aba1006c6c86a4714aaf1305a5
     depends_on:
       - redis
     labels:
@@ -29,6 +31,10 @@ services:
       # Route specific paths to backend
       - "traefik.http.routers.captcha-backend.rule=Host(`captcha.sharingurl.com`) && (PathPrefix(`/api`) || Path(`/captcha.js`) || Path(`/captcha-render.js`) || Path(`/engine.js`) || Path(`/engine.wasm`) || Path(`/debug`))"
       - "traefik.http.services.captcha-backend.loadbalancer.server.port=3000"
+      - "traefik.http.routers.captcha-backend.entrypoints=websecure"
+      - "traefik.http.routers.captcha-backend.tls=true"
+      - "traefik.http.routers.captcha-backend.service=captcha-backend"
+      - "traefik.http.routers.captcha-backend.tls.certresolver=cloudflare"
 
   frontend:
     build:
@@ -36,8 +42,16 @@ services:
       dockerfile: Dockerfile
     container_name: captcha-frontend
     restart: always
+    networks:
+      - proxy
     labels:
       - "traefik.enable=true"
       # Route all other traffic exactly to frontend
       - "traefik.http.routers.captcha-frontend.rule=Host(`captcha.sharingurl.com`)"
       - "traefik.http.services.captcha-frontend.loadbalancer.server.port=5173"
+      - "traefik.http.routers.captcha-frontend.entrypoints=websecure"
+      - "traefik.http.routers.captcha-frontend.tls=true"
+      - "traefik.http.routers.captcha-frontend.tls.certresolver=cloudflare"
+networks:
+  proxy:
+    external: true
