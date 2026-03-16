@@ -1,0 +1,726 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>You can't screenshot this - Controller</title>
+    <style>
+      html, body {
+        height: 100%;
+        margin: 0;
+        overflow: hidden;
+      }
+      canvas {
+        display: block;
+      }
+
+      /* Control Panel Styles */
+      #controls {
+        position: fixed;
+        top: 16px;
+        left: 16px;
+        background: rgba(0, 0, 0, 0.85);
+        border-radius: 12px;
+        padding: 16px;
+        color: #fff;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        font-size: 13px;
+        z-index: 1000;
+        min-width: 280px;
+        box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
+        transition: transform 0.3s ease, opacity 0.3s ease;
+      }
+      #controls.hidden {
+        transform: translateX(-100%);
+        opacity: 0;
+        pointer-events: none;
+      }
+      #controls h3 {
+        margin: 0 0 12px;
+        font-size: 15px;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      #toggleBtn {
+        position: fixed;
+        top: 16px;
+        left: 16px;
+        background: rgba(0, 0, 0, 0.85);
+        border: none;
+        border-radius: 8px;
+        color: #fff;
+        padding: 8px 12px;
+        cursor: pointer;
+        font-size: 14px;
+        z-index: 999;
+        transition: opacity 0.3s ease;
+      }
+      #toggleBtn.hidden {
+        opacity: 0;
+        pointer-events: none;
+      }
+
+      .control-section {
+        margin-bottom: 16px;
+        padding-bottom: 16px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      }
+      .control-section:last-child {
+        margin-bottom: 0;
+        padding-bottom: 0;
+        border-bottom: none;
+      }
+      .section-title {
+        font-weight: 600;
+        margin-bottom: 10px;
+        color: #88f;
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
+      .section-title.bg-title {
+        color: #8f8;
+      }
+
+      .slider-row {
+        display: flex;
+        align-items: center;
+        margin-bottom: 8px;
+      }
+      .slider-row label {
+        flex: 0 0 80px;
+        font-size: 12px;
+        color: #ccc;
+      }
+      .slider-row input[type="range"] {
+        flex: 1;
+        margin: 0 10px;
+        -webkit-appearance: none;
+        appearance: none;
+        height: 6px;
+        background: rgba(255, 255, 255, 0.2);
+        border-radius: 3px;
+        outline: none;
+      }
+      .slider-row input[type="range"]::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        appearance: none;
+        width: 16px;
+        height: 16px;
+        background: #fff;
+        border-radius: 50%;
+        cursor: pointer;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+      }
+      .slider-row .value {
+        flex: 0 0 45px;
+        text-align: right;
+        font-family: 'SF Mono', Monaco, monospace;
+        font-size: 12px;
+        color: #fff;
+      }
+
+      .text-input-row {
+        display: flex;
+        gap: 8px;
+        margin-top: 8px;
+      }
+      .text-input-row input[type="text"] {
+        flex: 1;
+        background: rgba(255, 255, 255, 0.1);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        border-radius: 6px;
+        padding: 8px 10px;
+        color: #fff;
+        font-size: 13px;
+        outline: none;
+      }
+      .text-input-row input[type="text"]:focus {
+        border-color: rgba(255, 255, 255, 0.4);
+      }
+
+      .btn-row {
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+      }
+      .btn {
+        background: rgba(255, 255, 255, 0.15);
+        border: none;
+        border-radius: 6px;
+        color: #fff;
+        padding: 6px 12px;
+        font-size: 12px;
+        cursor: pointer;
+        transition: background 0.2s;
+      }
+      .btn:hover {
+        background: rgba(255, 255, 255, 0.25);
+      }
+      .btn.active {
+        background: rgba(100, 150, 255, 0.4);
+      }
+      .btn.pause-btn {
+        background: rgba(255, 100, 100, 0.3);
+      }
+      .btn.pause-btn.paused {
+        background: rgba(100, 255, 100, 0.3);
+      }
+
+      .shortcuts {
+        font-size: 11px;
+        color: #888;
+        margin-top: 12px;
+        line-height: 1.5;
+      }
+      .shortcuts kbd {
+        background: rgba(255, 255, 255, 0.1);
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-family: inherit;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="canvas"></canvas>
+
+    <button id="toggleBtn" class="hidden">☰ Show Controls</button>
+
+    <div id="controls">
+      <h3>
+        Noise Controls
+        <button class="btn" onclick="toggleControls()" style="padding: 4px 8px;">✕</button>
+      </h3>
+
+      <!-- Text Noise Controls -->
+      <div class="control-section">
+        <div class="section-title">Text Noise</div>
+        <div class="slider-row">
+          <label>Direction</label>
+          <input type="range" id="textDir" min="0" max="360" value="90" />
+          <span class="value" id="textDirVal">90°</span>
+        </div>
+        <div class="slider-row">
+          <label>Speed</label>
+          <input type="range" id="textSpeed" min="0" max="20" value="4" />
+          <span class="value" id="textSpeedVal">4 px</span>
+        </div>
+      </div>
+
+      <!-- Background Noise Controls -->
+      <div class="control-section">
+        <div class="section-title bg-title">Background Noise</div>
+        <div class="slider-row">
+          <label>Direction</label>
+          <input type="range" id="bgDir" min="0" max="360" value="0" />
+          <span class="value" id="bgDirVal">0°</span>
+        </div>
+        <div class="slider-row">
+          <label>Speed</label>
+          <input type="range" id="bgSpeed" min="0" max="20" value="4" />
+          <span class="value" id="bgSpeedVal">4 px</span>
+        </div>
+      </div>
+
+      <!-- Presets -->
+      <div class="control-section">
+        <div class="section-title" style="color: #fa8;">Presets</div>
+        <div class="btn-row">
+          <button class="btn" onclick="applyPreset('diagonal')">↗ Diagonal</button>
+          <button class="btn" onclick="applyPreset('opposite')">↔ Opposite</button>
+          <button class="btn" onclick="applyPreset('chaos')">⚡ Chaos</button>
+          <button class="btn" onclick="applyPreset('slow')">🐌 Slow</button>
+          <button class="btn" onclick="applyPreset('static')">⏹ Static</button>
+        </div>
+      </div>
+
+      <!-- Text Input -->
+      <div class="control-section">
+        <div class="section-title" style="color: #f8f;">Display Text</div>
+        <div class="text-input-row">
+          <input type="text" id="textInput" placeholder="Enter text..." />
+        </div>
+      </div>
+
+      <!-- Playback -->
+      <div class="control-section">
+        <div class="btn-row">
+          <button class="btn pause-btn" id="pauseBtn" onclick="togglePause()">⏸ Pause</button>
+        </div>
+      </div>
+
+      <div class="shortcuts">
+        <kbd>H</kbd> Hide/Show &nbsp;
+        <kbd>Space</kbd> Pause &nbsp;
+        <kbd>←→</kbd> Adjust
+      </div>
+    </div>
+
+    <script>
+      // ============================================================
+      // CONFIGURATION
+      // ============================================================
+      const CELL_SIZE = 2;
+      const MASK_BLOCK_SIZE = CELL_SIZE;
+      const STEP_MS = 32;
+
+      // State
+      let textDirectionDeg = 90;   // Text noise direction (90 = down)
+      let textSpeed = 4;           // Text noise speed (px per step)
+      let bgDirectionDeg = 0;      // Background direction (0 = right)
+      let bgSpeed = 4;             // Background speed (px per step)
+      let isPaused = false;
+      let textString = '조현준바보';
+
+      // Animation state
+      let lastStepTime = 0;
+      let bgOffsetX = 0;
+      let bgOffsetY = 0;
+      let textOffsetX = 0;
+      let textOffsetY = 0;
+
+      // Canvas buffers
+      let noiseCanvas = null;
+      let circleTile = null;
+      let maskCanvas = null;
+      let circleBuffer = null;
+      let compositeCanvas = null;
+
+      // Main canvas
+      const canvas = document.getElementById('canvas');
+      const ctx = canvas.getContext('2d', { alpha: false });
+
+      // ============================================================
+      // OPTIMIZED NOISE GENERATION (using ImageData for bulk writes)
+      // ============================================================
+      function createNoiseCanvas(width, height) {
+        const off = document.createElement('canvas');
+        off.width = width;
+        off.height = height;
+        const octx = off.getContext('2d', { alpha: false });
+
+        const imageData = octx.createImageData(width, height);
+        const data = imageData.data;
+
+        for (let y = 0; y < height; y += CELL_SIZE) {
+          for (let x = 0; x < width; x += CELL_SIZE) {
+            const color = Math.random() < 0.5 ? 0 : 255;
+            // Fill CELL_SIZE × CELL_SIZE block
+            for (let dy = 0; dy < CELL_SIZE && y + dy < height; dy++) {
+              for (let dx = 0; dx < CELL_SIZE && x + dx < width; dx++) {
+                const i = ((y + dy) * width + (x + dx)) * 4;
+                data[i] = data[i + 1] = data[i + 2] = color;
+                data[i + 3] = 255;
+              }
+            }
+          }
+        }
+
+        octx.putImageData(imageData, 0, 0);
+        return off;
+      }
+
+      // ============================================================
+      // BACKGROUND RENDERING (optimized: single draw call)
+      // ============================================================
+      function renderNoise() {
+        if (!noiseCanvas) return;
+        const w = canvas.clientWidth;
+        const h = canvas.clientHeight;
+
+        // Keep offsets within bounds for seamless tiling
+        const ox = ((bgOffsetX % w) + w) % w;
+        const oy = ((bgOffsetY % h) + h) % h;
+
+        // Single draw - noiseCanvas is 3x viewport size
+        ctx.drawImage(noiseCanvas, -ox, -oy);
+      }
+
+      // ============================================================
+      // TEXT MASK GENERATION
+      // ============================================================
+      function createPixelatedTextMask(text, blockSize, viewportWidth, viewportHeight) {
+        const lines = String(text).split('\n');
+        const scratch = document.createElement('canvas');
+        scratch.width = viewportWidth;
+        scratch.height = viewportHeight;
+        const sctx = scratch.getContext('2d');
+        sctx.imageSmoothingEnabled = false;
+
+        const targetWidth = Math.max(1, Math.floor(viewportWidth * 0.85));
+        const targetHeight = Math.max(1, Math.floor(viewportHeight * 0.6));
+        const lineHeightFactor = 1.2;
+
+        // Calculate optimal font size
+        let fontSize = Math.max(8, Math.floor(targetHeight / Math.max(1, lines.length)));
+        for (let i = 0; i < 3; i++) {
+          sctx.font = `900 ${fontSize}px sans-serif`;
+          let maxLineWidth = 1;
+          for (const line of lines) {
+            maxLineWidth = Math.max(maxLineWidth, sctx.measureText(line).width || 1);
+          }
+          const totalHeight = Math.max(1, Math.ceil(lines.length * fontSize * lineHeightFactor));
+          const scale = Math.min(targetWidth / maxLineWidth, targetHeight / totalHeight, 1);
+          fontSize = Math.max(8, Math.floor(fontSize * scale));
+        }
+
+        // Draw text
+        sctx.clearRect(0, 0, scratch.width, scratch.height);
+        sctx.font = `900 ${fontSize}px sans-serif`;
+        sctx.textAlign = 'center';
+        sctx.textBaseline = 'middle';
+        sctx.fillStyle = '#000';
+
+        const centerX = Math.floor(viewportWidth / 2);
+        const centerY = Math.floor(viewportHeight / 2);
+        const spacing = Math.ceil(fontSize * lineHeightFactor);
+        const startY = Math.floor(centerY - ((lines.length - 1) * spacing) / 2);
+
+        for (let i = 0; i < lines.length; i++) {
+          sctx.fillText(lines[i], centerX, startY + i * spacing);
+        }
+
+        // Extract bounding box
+        const img = sctx.getImageData(0, 0, scratch.width, scratch.height);
+        const data = img.data;
+        const w = img.width, h = img.height;
+        let minX = w, minY = h, maxX = 0, maxY = 0;
+
+        for (let y = 0; y < h; y++) {
+          for (let x = 0; x < w; x++) {
+            if (data[(y * w + x) * 4 + 3] > 0) {
+              minX = Math.min(minX, x);
+              minY = Math.min(minY, y);
+              maxX = Math.max(maxX, x);
+              maxY = Math.max(maxY, y);
+            }
+          }
+        }
+
+        if (maxX < minX || maxY < minY) {
+          const empty = document.createElement('canvas');
+          empty.width = empty.height = blockSize;
+          return empty;
+        }
+
+        // Align to grid
+        const alignedMinX = Math.floor(minX / blockSize) * blockSize;
+        const alignedMinY = Math.floor(minY / blockSize) * blockSize;
+        const alignedWidth = Math.ceil((maxX - alignedMinX + 1) / blockSize) * blockSize;
+        const alignedHeight = Math.ceil((maxY - alignedMinY + 1) / blockSize) * blockSize;
+
+        // Create pixelated mask
+        const mask = document.createElement('canvas');
+        mask.width = alignedWidth;
+        mask.height = alignedHeight;
+        const mctx = mask.getContext('2d');
+        mctx.imageSmoothingEnabled = false;
+        mctx.fillStyle = '#000';
+
+        for (let y = 0; y < alignedHeight; y += blockSize) {
+          for (let x = 0; x < alignedWidth; x += blockSize) {
+            const sx = alignedMinX + x + Math.floor(blockSize / 2);
+            const sy = alignedMinY + y + Math.floor(blockSize / 2);
+            if (sx >= 0 && sy >= 0 && sx < w && sy < h && data[(sy * w + sx) * 4 + 3] > 0) {
+              mctx.fillRect(x, y, blockSize, blockSize);
+            }
+          }
+        }
+
+        return mask;
+      }
+
+      // ============================================================
+      // TEXT NOISE RENDERING
+      // ============================================================
+      function drawTextNoise() {
+        if (!maskCanvas || !circleTile || !circleBuffer || !compositeCanvas) return;
+
+        const width = canvas.clientWidth;
+        const height = canvas.clientHeight;
+        const cx = Math.floor(width / 2);
+        const cy = Math.floor(height / 2);
+
+        // Align text to grid
+        const left = Math.round((cx - maskCanvas.width / 2) / MASK_BLOCK_SIZE) * MASK_BLOCK_SIZE;
+        const top = Math.round((cy - maskCanvas.height / 2) / MASK_BLOCK_SIZE) * MASK_BLOCK_SIZE;
+
+        // Calculate normalized offsets for seamless tiling
+        const tileW = circleTile.width;
+        const tileH = circleTile.height;
+        const normOffsetX = ((textOffsetX % tileW) + tileW) % tileW;
+        const normOffsetY = ((textOffsetY % tileH) + tileH) % tileH;
+
+        // Render scrolling noise to buffer
+        const bufCtx = circleBuffer.getContext('2d');
+        bufCtx.imageSmoothingEnabled = false;
+        bufCtx.clearRect(0, 0, circleBuffer.width, circleBuffer.height);
+
+        for (let y = -tileH + normOffsetY; y < circleBuffer.height; y += tileH) {
+          for (let x = -tileW + normOffsetX; x < circleBuffer.width; x += tileW) {
+            bufCtx.drawImage(circleTile, x, y);
+          }
+        }
+
+        // Apply mask
+        const compCtx = compositeCanvas.getContext('2d');
+        compCtx.imageSmoothingEnabled = false;
+        compCtx.globalCompositeOperation = 'copy';
+        compCtx.drawImage(circleBuffer, 0, 0);
+        compCtx.globalCompositeOperation = 'destination-in';
+        compCtx.drawImage(maskCanvas, 0, 0);
+        compCtx.globalCompositeOperation = 'source-over';
+
+        ctx.drawImage(compositeCanvas, left, top);
+      }
+
+      // ============================================================
+      // RESIZE HANDLER
+      // ============================================================
+      function resizeCanvas() {
+        const dpr = window.devicePixelRatio || 1;
+        const width = Math.ceil(window.innerWidth);
+        const height = Math.ceil(window.innerHeight);
+
+        canvas.style.width = width + 'px';
+        canvas.style.height = height + 'px';
+        canvas.width = Math.ceil(width * dpr);
+        canvas.height = Math.ceil(height * dpr);
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        ctx.imageSmoothingEnabled = false;
+
+        // Recreate background noise (3x viewport for seamless scrolling)
+        noiseCanvas = createNoiseCanvas(width * 3, height * 3);
+
+        rebuildTextResources();
+      }
+
+      function rebuildTextResources() {
+        const width = canvas.clientWidth;
+        const height = canvas.clientHeight;
+
+        maskCanvas = createPixelatedTextMask(textString, MASK_BLOCK_SIZE, width, height);
+
+        const mw = maskCanvas.width;
+        const mh = maskCanvas.height;
+
+        circleTile = createNoiseCanvas(mw, mh);
+
+        // Reuse buffers if possible
+        if (!circleBuffer || circleBuffer.width !== mw || circleBuffer.height !== mh) {
+          circleBuffer = document.createElement('canvas');
+          circleBuffer.width = mw;
+          circleBuffer.height = mh;
+        }
+        if (!compositeCanvas || compositeCanvas.width !== mw || compositeCanvas.height !== mh) {
+          compositeCanvas = document.createElement('canvas');
+          compositeCanvas.width = mw;
+          compositeCanvas.height = mh;
+        }
+      }
+
+      // ============================================================
+      // ANIMATION LOOP
+      // ============================================================
+      function animate(ts) {
+        if (!isPaused) {
+          if (lastStepTime === 0) lastStepTime = ts;
+
+          if (ts - lastStepTime >= STEP_MS) {
+            // Background movement
+            const bgRad = (bgDirectionDeg * Math.PI) / 180;
+            bgOffsetX += Math.cos(bgRad) * bgSpeed;
+            bgOffsetY += Math.sin(bgRad) * bgSpeed;
+
+            // Text noise movement
+            const textRad = (textDirectionDeg * Math.PI) / 180;
+            textOffsetX += Math.cos(textRad) * textSpeed;
+            textOffsetY += Math.sin(textRad) * textSpeed;
+
+            lastStepTime = ts;
+          }
+
+          renderNoise();
+          drawTextNoise();
+        }
+
+        requestAnimationFrame(animate);
+      }
+
+      // ============================================================
+      // UI CONTROLS
+      // ============================================================
+      const controlsEl = document.getElementById('controls');
+      const toggleBtnEl = document.getElementById('toggleBtn');
+      const pauseBtnEl = document.getElementById('pauseBtn');
+
+      function toggleControls() {
+        controlsEl.classList.toggle('hidden');
+        toggleBtnEl.classList.toggle('hidden');
+      }
+
+      function togglePause() {
+        isPaused = !isPaused;
+        pauseBtnEl.textContent = isPaused ? '▶ Play' : '⏸ Pause';
+        pauseBtnEl.classList.toggle('paused', isPaused);
+        if (!isPaused) lastStepTime = 0;
+        updateURL();
+      }
+
+      // Slider bindings
+      const sliders = {
+        textDir: { el: document.getElementById('textDir'), valEl: document.getElementById('textDirVal'), suffix: '°' },
+        textSpeed: { el: document.getElementById('textSpeed'), valEl: document.getElementById('textSpeedVal'), suffix: ' px' },
+        bgDir: { el: document.getElementById('bgDir'), valEl: document.getElementById('bgDirVal'), suffix: '°' },
+        bgSpeed: { el: document.getElementById('bgSpeed'), valEl: document.getElementById('bgSpeedVal'), suffix: ' px' },
+      };
+
+      function updateSliderDisplay(key) {
+        const s = sliders[key];
+        s.valEl.textContent = s.el.value + s.suffix;
+      }
+
+      function readSlidersToState() {
+        textDirectionDeg = parseInt(sliders.textDir.el.value, 10);
+        textSpeed = parseInt(sliders.textSpeed.el.value, 10);
+        bgDirectionDeg = parseInt(sliders.bgDir.el.value, 10);
+        bgSpeed = parseInt(sliders.bgSpeed.el.value, 10);
+      }
+
+      function syncSlidersFromState() {
+        sliders.textDir.el.value = textDirectionDeg;
+        sliders.textSpeed.el.value = textSpeed;
+        sliders.bgDir.el.value = bgDirectionDeg;
+        sliders.bgSpeed.el.value = bgSpeed;
+        Object.keys(sliders).forEach(updateSliderDisplay);
+      }
+
+      Object.keys(sliders).forEach(key => {
+        sliders[key].el.addEventListener('input', () => {
+          updateSliderDisplay(key);
+          readSlidersToState();
+          updateURL();
+        });
+      });
+
+      // Text input
+      const textInputEl = document.getElementById('textInput');
+      textInputEl.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          textString = textInputEl.value || '조현준바보';
+          rebuildTextResources();
+          updateURL();
+        }
+        e.stopPropagation(); // Prevent keyboard shortcuts while typing
+      });
+
+      // ============================================================
+      // PRESETS
+      // ============================================================
+      const presets = {
+        diagonal: { textDir: 45, textSpeed: 4, bgDir: 45, bgSpeed: 4 },
+        opposite: { textDir: 270, textSpeed: 4, bgDir: 90, bgSpeed: 4 },
+        chaos: () => ({
+          textDir: Math.floor(Math.random() * 360),
+          textSpeed: 10 + Math.floor(Math.random() * 10),
+          bgDir: Math.floor(Math.random() * 360),
+          bgSpeed: 10 + Math.floor(Math.random() * 10),
+        }),
+        slow: { textDir: 90, textSpeed: 1, bgDir: 0, bgSpeed: 1 },
+        static: { textDir: 0, textSpeed: 0, bgDir: 0, bgSpeed: 0 },
+      };
+
+      function applyPreset(name) {
+        let p = presets[name];
+        if (typeof p === 'function') p = p();
+
+        textDirectionDeg = p.textDir;
+        textSpeed = p.textSpeed;
+        bgDirectionDeg = p.bgDir;
+        bgSpeed = p.bgSpeed;
+
+        syncSlidersFromState();
+        updateURL();
+      }
+
+      // ============================================================
+      // URL PERSISTENCE
+      // ============================================================
+      function updateURL() {
+        const params = new URLSearchParams();
+        params.set('textDir', textDirectionDeg);
+        params.set('textSpeed', textSpeed);
+        params.set('bgDir', bgDirectionDeg);
+        params.set('bgSpeed', bgSpeed);
+        if (isPaused) params.set('paused', '1');
+        if (textString !== '조현준바보') params.set('text', textString);
+        
+        const newURL = `${window.location.pathname}?${params.toString()}`;
+        window.history.replaceState({}, '', newURL);
+      }
+
+      function loadFromURL() {
+        const params = new URLSearchParams(window.location.search);
+
+        if (params.has('textDir')) textDirectionDeg = parseInt(params.get('textDir'), 10) || 90;
+        if (params.has('textSpeed')) textSpeed = parseInt(params.get('textSpeed'), 10) || 4;
+        if (params.has('bgDir')) bgDirectionDeg = parseInt(params.get('bgDir'), 10) || 0;
+        if (params.has('bgSpeed')) bgSpeed = parseInt(params.get('bgSpeed'), 10) || 4;
+        if (params.has('paused')) {
+          isPaused = params.get('paused') === '1';
+          pauseBtnEl.textContent = isPaused ? '▶ Play' : '⏸ Pause';
+          pauseBtnEl.classList.toggle('paused', isPaused);
+        }
+        if (params.has('text')) {
+          textString = params.get('text');
+          textInputEl.value = textString;
+        } else {
+          textInputEl.value = textString;
+        }
+
+        syncSlidersFromState();
+      }
+
+      // ============================================================
+      // KEYBOARD SHORTCUTS
+      // ============================================================
+      let focusedSlider = null;
+
+      document.addEventListener('keydown', (e) => {
+        // Don't trigger shortcuts when typing in input
+        if (document.activeElement.tagName === 'INPUT') return;
+
+        switch (e.key.toLowerCase()) {
+          case 'h':
+            toggleControls();
+            break;
+          case ' ':
+            e.preventDefault();
+            togglePause();
+            break;
+          case 'arrowleft':
+          case 'arrowright':
+            // Find focused slider or default to bgSpeed
+            const activeSlider = document.activeElement;
+            if (activeSlider && activeSlider.type === 'range') {
+              const delta = e.key === 'ArrowRight' ? 1 : -1;
+              activeSlider.value = parseInt(activeSlider.value, 10) + delta;
+              activeSlider.dispatchEvent(new Event('input'));
+            }
+            break;
+        }
+      });
+
+      // ============================================================
+      // INITIALIZATION
+      // ============================================================
+      window.addEventListener('resize', resizeCanvas);
+
+      loadFromURL();
+      resizeCanvas();
+      requestAnimationFrame(animate);
+    </script>
+  </body>
+</html>

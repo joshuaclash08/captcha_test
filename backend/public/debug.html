@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Noise CAPTCHA — Debug Controller</title>
+  <link rel="stylesheet" href="/style.css" />
+  <style>
+    html, body { 
+      height: 100%; 
+      overflow: hidden; 
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    #canvas-container {
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      height: 100%;
+    }
+    #captcha-canvas {
+      display: block;
+      image-rendering: pixelated;
+      image-rendering: crisp-edges;
+      border: 2px solid rgba(255,255,255,0.1);
+      border-radius: 8px;
+    }
+    /* Verify bar at the bottom */
+    #verify-bar {
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      background: rgba(0,0,0,0.9);
+      backdrop-filter: blur(12px);
+      padding: 14px 24px;
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      justify-content: center;
+      z-index: 900;
+      border-top: 1px solid rgba(255,255,255,0.1);
+    }
+    #verify-bar input {
+      width: 160px;
+      padding: 10px 14px;
+      font-size: 18px;
+      letter-spacing: 5px;
+      font-family: 'SF Mono', Monaco, monospace;
+      text-transform: uppercase;
+      background: #1a1a1a;
+      border: 2px solid #333;
+      border-radius: 8px;
+      color: #fff;
+      outline: none;
+      text-align: center;
+      transition: border-color 0.2s;
+    }
+    #verify-bar input:focus { border-color: #5b9cff; }
+    #verify-bar .result-inline {
+      font-size: 13px;
+      font-weight: 600;
+      min-width: 100px;
+    }
+    #verify-bar .result-inline.ok  { color: #4ade80; }
+    #verify-bar .result-inline.err { color: #f87171; }
+    
+    /* Toggle button - always visible when panel hidden */
+    #toggleBtn {
+      position: fixed;
+      top: 16px;
+      left: 16px;
+      background: rgba(0, 0, 0, 0.9);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 10px;
+      color: #fff;
+      padding: 10px 16px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 600;
+      z-index: 999;
+      display: none;
+      transition: background 0.2s, transform 0.2s;
+    }
+    #toggleBtn:hover {
+      background: rgba(50, 50, 50, 0.95);
+      transform: scale(1.02);
+    }
+    #toggleBtn.visible { display: block; }
+    
+    /* Control panel overrides for debug page */
+    #controls {
+      position: fixed;
+      top: 16px;
+      left: 16px;
+      max-width: 340px;
+      width: calc(100vw - 32px);
+      max-height: calc(100vh - 100px);
+      overflow-y: auto;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(255,255,255,0.2) transparent;
+    }
+    #controls::-webkit-scrollbar { width: 6px; }
+    #controls::-webkit-scrollbar-track { background: transparent; }
+    #controls::-webkit-scrollbar-thumb { 
+      background: rgba(255,255,255,0.2); 
+      border-radius: 3px; 
+    }
+    #controls.hidden {
+      transform: translateX(calc(-100% - 32px));
+      opacity: 0;
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+  <div id="canvas-container">
+    <canvas id="captcha-canvas"></canvas>
+  </div>
+
+  <!-- Toggle button (visible when panel is hidden) -->
+  <button id="toggleBtn">☰ Show Controls</button>
+
+  <!-- ===================== CONTROL PANEL ===================== -->
+  <div id="controls">
+    <h3>
+      🎛 Noise CAPTCHA Debug
+      <button class="ctrl-btn" id="closeBtn" style="padding:4px 10px;font-size:14px;">✕</button>
+    </h3>
+
+    <!-- Canvas Settings -->
+    <div class="control-section">
+      <div class="section-title" style="color:#60a5fa;">Canvas Settings</div>
+      <div class="slider-row">
+        <label>Pixel Size</label>
+        <input type="range" id="cellSize" min="1" max="6" value="1" />
+        <span class="value" id="cellSizeVal">1 px</span>
+      </div>
+      <div class="slider-row">
+        <label>Width</label>
+        <input type="range" id="canvasWidth" min="200" max="960" value="600" step="20" />
+        <span class="value" id="canvasWidthVal">600</span>
+      </div>
+      <div class="slider-row">
+        <label>Height</label>
+        <input type="range" id="canvasHeight" min="100" max="540" value="300" step="20" />
+        <span class="value" id="canvasHeightVal">300</span>
+      </div>
+      <div class="btn-row" style="margin-top:8px;">
+        <button class="ctrl-btn" id="applyCanvasBtn">Apply Size</button>
+        <button class="ctrl-btn" id="fitScreenBtn">Fit Screen</button>
+      </div>
+    </div>
+
+    <!-- Text Noise -->
+    <div class="control-section">
+      <div class="section-title text-noise">Text Noise</div>
+      <div class="slider-row">
+        <label>Direction</label>
+        <input type="range" id="textDir" min="0" max="360" value="90" />
+        <span class="value" id="textDirVal">90°</span>
+      </div>
+      <div class="slider-row">
+        <label>Speed</label>
+        <input type="range" id="textSpeed" min="0" max="20" value="4" step="0.5" />
+        <span class="value" id="textSpeedVal">4 px</span>
+      </div>
+    </div>
+
+    <!-- Background Noise -->
+    <div class="control-section">
+      <div class="section-title bg-noise">Background Noise</div>
+      <div class="slider-row">
+        <label>Direction</label>
+        <input type="range" id="bgDir" min="0" max="360" value="0" />
+        <span class="value" id="bgDirVal">0°</span>
+      </div>
+      <div class="slider-row">
+        <label>Speed</label>
+        <input type="range" id="bgSpeed" min="0" max="20" value="4" step="0.5" />
+        <span class="value" id="bgSpeedVal">4 px</span>
+      </div>
+    </div>
+
+    <!-- Timing & Presets -->
+    <div class="control-section">
+      <div class="section-title presets">Timing &amp; Presets</div>
+      <div class="slider-row">
+        <label>Step (ms)</label>
+        <input type="range" id="stepMs" min="8" max="100" value="32" />
+        <span class="value" id="stepMsVal">32 ms</span>
+      </div>
+      <div class="btn-row" style="margin-top:10px;">
+        <button class="ctrl-btn" data-preset="diagonal">↗ Diagonal</button>
+        <button class="ctrl-btn" data-preset="opposite">↔ Opposite</button>
+        <button class="ctrl-btn" data-preset="chaos">⚡ Chaos</button>
+      </div>
+      <div class="btn-row" style="margin-top:6px;">
+        <button class="ctrl-btn" data-preset="slow">🐌 Slow</button>
+        <button class="ctrl-btn" data-preset="static">⏹ Static</button>
+        <button class="ctrl-btn" data-preset="fast">🚀 Fast</button>
+      </div>
+    </div>
+
+    <!-- Security / Anti-Averaging -->
+    <div class="control-section">
+      <div class="section-title security">Anti-Averaging / Security</div>
+      <div class="toggle-row">
+        <label>Jitter Enabled</label>
+        <input type="checkbox" id="jitterEnabled" />
+      </div>
+      <div class="slider-row">
+        <label>Jitter (px)</label>
+        <input type="range" id="jitterMag" min="0" max="10" value="2" />
+        <span class="value" id="jitterMagVal">2 px</span>
+      </div>
+      <div class="toggle-row">
+        <label>Temporal Phase</label>
+        <input type="checkbox" id="temporalPhase" />
+      </div>
+      <div class="slider-row">
+        <label>Noise Regen</label>
+        <input type="range" id="noiseRegen" min="0" max="600" value="0" step="10" />
+        <span class="value" id="noiseRegenVal">Off</span>
+      </div>
+    </div>
+
+    <!-- Display Text -->
+    <div class="control-section">
+      <div class="section-title display">Display Text</div>
+      <div class="text-input-row">
+        <input type="text" id="textInput" placeholder="Custom text (Enter to apply)" />
+      </div>
+      <div class="btn-row" style="margin-top:8px;">
+        <button class="ctrl-btn" id="randomBtn">🎲 Random Challenge</button>
+      </div>
+    </div>
+
+    <!-- Playback -->
+    <div class="control-section">
+      <div class="section-title playback">Playback</div>
+      <div class="btn-row">
+        <button class="ctrl-btn pause-btn" id="pauseBtn">⏸ Pause</button>
+        <button class="ctrl-btn" id="regenNoiseBtn">🔄 Regen Noise</button>
+        <button class="ctrl-btn" id="stepFrameBtn">⏭ Step</button>
+      </div>
+    </div>
+
+    <!-- Info -->
+    <div class="control-section">
+      <div class="section-title info">Info</div>
+      <div class="info-grid">
+        <span class="lbl">Frame</span><span class="val" id="infoFrame">0</span>
+        <span class="lbl">FPS</span><span class="val" id="infoFps">—</span>
+        <span class="lbl">Canvas</span><span class="val" id="infoSize">—</span>
+        <span class="lbl">Cell Size</span><span class="val" id="infoCellSize">—</span>
+        <span class="lbl">Challenge</span><span class="val" id="infoChallengeId">—</span>
+        <span class="lbl">Dir Gap</span><span class="val" id="infoDirGap">—</span>
+        <span class="lbl">Jitter</span><span class="val" id="infoJitter">—</span>
+      </div>
+    </div>
+
+    <div class="shortcuts">
+      <kbd>H</kbd> Hide/Show &nbsp;
+      <kbd>Space</kbd> Pause &nbsp;
+      <kbd>R</kbd> Refresh
+    </div>
+  </div>
+
+  <!-- ===================== VERIFY BAR ===================== -->
+  <div id="verify-bar">
+    <input id="verifyInput" type="text" maxlength="8" placeholder="CODE" autocomplete="off" />
+    <button class="btn btn-verify" id="verifyBtn">Verify</button>
+    <button class="btn btn-refresh" id="refreshBtn" title="New challenge">↻</button>
+    <span id="verifyResult" class="result-inline"></span>
+  </div>
+
+  <!-- ===================== SCRIPT ===================== -->
+  <script type="module">
+    import { initCaptcha, verify, pause, resume, togglePause, getEngine, getChallengeId, getNoiseConfig } from "/captcha-widget.js";
+
+    const canvas = document.getElementById("captcha-canvas");
+    const controlsEl = document.getElementById("controls");
+    const toggleBtnEl = document.getElementById("toggleBtn");
+    const pauseBtnEl = document.getElementById("pauseBtn");
+
+    // ── State ──
+    let currentCellSize = 1;
+    let isPaused = false;
+
+    // ── Sizing ──
+    const MAX_W = 960;
+    const MAX_H = 540;
+    
+    function getCanvasDimensions() {
+      return {
+        width: parseInt(document.getElementById("canvasWidth").value),
+        height: parseInt(document.getElementById("canvasHeight").value)
+      };
+    }
+
+    function resizeCanvas(w, h) {
+      canvas.width = Math.min(w || 600, MAX_W);
+      canvas.height = Math.min(h || 300, MAX_H);
+    }
+
+    // ── Init ──
+    async function doInit(text) {
+      const dims = getCanvasDimensions();
+      currentCellSize = parseInt(document.getElementById("cellSize").value);
+      resizeCanvas(dims.width, dims.height);
+      
+      const opts = {
+        width: canvas.width,
+        height: canvas.height,
+        cellSize: currentCellSize,
+      };
+      if (text) opts.text = text;
+      await initCaptcha(canvas, opts);
+
+      // Sync UI sliders FROM server-sent noise config
+      const nc = getNoiseConfig();
+      if (nc) {
+        document.getElementById("textDir").value = nc.textDirection;
+        document.getElementById("textSpeed").value = nc.textSpeed;
+        document.getElementById("bgDir").value = nc.bgDirection;
+        document.getElementById("bgSpeed").value = nc.bgSpeed;
+        document.getElementById("stepMs").value = nc.stepMs;
+        document.getElementById("jitterEnabled").checked = nc.jitterEnabled;
+        document.getElementById("jitterMag").value = nc.jitterMagnitude;
+        document.getElementById("temporalPhase").checked = nc.temporalPhaseEnabled;
+        document.getElementById("noiseRegen").value = nc.noiseRegenInterval;
+        // Update all display labels
+        for (const key of Object.keys(sliderDefs)) {
+          updateSliderDisplay(key);
+        }
+      }
+
+      isPaused = false;
+      pauseBtnEl.textContent = "⏸ Pause";
+      pauseBtnEl.classList.remove("paused");
+      startInfoLoop();
+    }
+
+    // ── Slider definitions ──
+    const sliderDefs = {
+      cellSize:   { el: () => document.getElementById("cellSize"),   valEl: () => document.getElementById("cellSizeVal"),   suffix: " px", setter: null, getter: null },
+      canvasWidth:  { el: () => document.getElementById("canvasWidth"),  valEl: () => document.getElementById("canvasWidthVal"),  suffix: "", setter: null, getter: null },
+      canvasHeight: { el: () => document.getElementById("canvasHeight"), valEl: () => document.getElementById("canvasHeightVal"), suffix: "", setter: null, getter: null },
+      textDir:    { el: () => document.getElementById("textDir"),    valEl: () => document.getElementById("textDirVal"),    suffix: "°",   setter: "set_text_direction", getter: "get_text_direction" },
+      textSpeed:  { el: () => document.getElementById("textSpeed"),  valEl: () => document.getElementById("textSpeedVal"),  suffix: " px", setter: "set_text_speed",     getter: "get_text_speed" },
+      bgDir:      { el: () => document.getElementById("bgDir"),      valEl: () => document.getElementById("bgDirVal"),      suffix: "°",   setter: "set_bg_direction",   getter: "get_bg_direction" },
+      bgSpeed:    { el: () => document.getElementById("bgSpeed"),    valEl: () => document.getElementById("bgSpeedVal"),    suffix: " px", setter: "set_bg_speed",       getter: "get_bg_speed" },
+      stepMs:     { el: () => document.getElementById("stepMs"),     valEl: () => document.getElementById("stepMsVal"),     suffix: " ms", setter: "set_step_ms",        getter: "get_step_ms" },
+      jitterMag:  { el: () => document.getElementById("jitterMag"),  valEl: () => document.getElementById("jitterMagVal"),  suffix: " px", setter: "set_jitter_magnitude", getter: "get_jitter_magnitude" },
+      noiseRegen: { el: () => document.getElementById("noiseRegen"), valEl: () => document.getElementById("noiseRegenVal"), suffix: " f",  setter: "set_noise_regen_interval", getter: "get_noise_regen_interval", format: (v) => v == 0 ? "Off" : v + " f" },
+    };
+
+    function updateSliderDisplay(key) {
+      const def = sliderDefs[key];
+      const val = def.el().value;
+      def.valEl().textContent = def.format ? def.format(parseFloat(val)) : val + def.suffix;
+    }
+
+    function syncEngineFromUI() {
+      const engine = getEngine();
+      if (!engine) return;
+      for (const [key, def] of Object.entries(sliderDefs)) {
+        if (def.setter) {
+          const val = parseFloat(def.el().value);
+          engine[def.setter](val);
+        }
+        updateSliderDisplay(key);
+      }
+      engine.set_jitter_enabled(document.getElementById("jitterEnabled").checked);
+      engine.set_temporal_phase_enabled(document.getElementById("temporalPhase").checked);
+    }
+
+    // Bind slider inputs
+    for (const [key, def] of Object.entries(sliderDefs)) {
+      def.el().addEventListener("input", () => {
+        updateSliderDisplay(key);
+        if (def.setter) {
+          const engine = getEngine();
+          if (engine) engine[def.setter](parseFloat(def.el().value));
+        }
+      });
+    }
+
+    // Bind toggles
+    document.getElementById("jitterEnabled").addEventListener("change", (e) => {
+      const engine = getEngine();
+      if (engine) engine.set_jitter_enabled(e.target.checked);
+    });
+    document.getElementById("temporalPhase").addEventListener("change", (e) => {
+      const engine = getEngine();
+      if (engine) engine.set_temporal_phase_enabled(e.target.checked);
+    });
+
+    // ── Text input ──
+    document.getElementById("textInput").addEventListener("keydown", (e) => {
+      e.stopPropagation();
+      if (e.key === "Enter") {
+        const text = e.target.value || undefined;
+        doInit(text);
+      }
+    });
+
+    // ── Presets ──
+    const presets = {
+      diagonal: { textDir: 45, textSpeed: 4, bgDir: 225, bgSpeed: 4 },
+      opposite: { textDir: 270, textSpeed: 4, bgDir: 90, bgSpeed: 4 },
+      chaos: () => ({
+        textDir: Math.floor(Math.random() * 360),
+        textSpeed: 8 + Math.floor(Math.random() * 12),
+        bgDir: Math.floor(Math.random() * 360),
+        bgSpeed: 8 + Math.floor(Math.random() * 12),
+      }),
+      slow: { textDir: 90, textSpeed: 1, bgDir: 0, bgSpeed: 1 },
+      static: { textDir: 0, textSpeed: 0, bgDir: 0, bgSpeed: 0 },
+      fast: { textDir: 45, textSpeed: 12, bgDir: 315, bgSpeed: 12 },
+    };
+
+    document.querySelectorAll("[data-preset]").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const name = btn.dataset.preset;
+        let p = presets[name];
+        if (typeof p === "function") p = p();
+        document.getElementById("textDir").value = p.textDir;
+        document.getElementById("textSpeed").value = p.textSpeed;
+        document.getElementById("bgDir").value = p.bgDir;
+        document.getElementById("bgSpeed").value = p.bgSpeed;
+        for (const key of ["textDir", "textSpeed", "bgDir", "bgSpeed"]) {
+          updateSliderDisplay(key);
+        }
+        syncEngineFromUI();
+      });
+    });
+
+    // ── Canvas size controls ──
+    document.getElementById("applyCanvasBtn").addEventListener("click", () => {
+      const text = document.getElementById("textInput").value || undefined;
+      doInit(text);
+    });
+
+    document.getElementById("fitScreenBtn").addEventListener("click", () => {
+      const w = Math.min(window.innerWidth - 32, MAX_W);
+      const h = Math.min(window.innerHeight - 120, MAX_H);
+      document.getElementById("canvasWidth").value = w;
+      document.getElementById("canvasHeight").value = h;
+      updateSliderDisplay("canvasWidth");
+      updateSliderDisplay("canvasHeight");
+      const text = document.getElementById("textInput").value || undefined;
+      doInit(text);
+    });
+
+    // ── Playback ──
+    pauseBtnEl.addEventListener("click", () => {
+      isPaused = togglePause();
+      pauseBtnEl.textContent = isPaused ? "▶ Play" : "⏸ Pause";
+      pauseBtnEl.classList.toggle("paused", isPaused);
+    });
+
+    document.getElementById("regenNoiseBtn").addEventListener("click", () => {
+      const engine = getEngine();
+      if (engine) engine.regenerate_noise();
+    });
+
+    document.getElementById("stepFrameBtn").addEventListener("click", () => {
+      const engine = getEngine();
+      if (engine) {
+        engine.step(engine.get_step_ms());
+        const ctx = canvas.getContext("2d");
+        engine.render_frame(ctx);
+      }
+    });
+
+    document.getElementById("randomBtn").addEventListener("click", () => {
+      document.getElementById("textInput").value = "";
+      doInit();
+    });
+
+    // ── Panel toggle ──
+    function toggleControls() {
+      const isHidden = controlsEl.classList.toggle("hidden");
+      toggleBtnEl.classList.toggle("visible", isHidden);
+    }
+    
+    document.getElementById("closeBtn").addEventListener("click", toggleControls);
+    toggleBtnEl.addEventListener("click", toggleControls);
+
+    // ── Info loop ──
+    let fpsFrames = 0;
+    let fpsLastTime = performance.now();
+    let infoLoopId = null;
+
+    function startInfoLoop() {
+      if (infoLoopId) return;
+      infoLoopId = setInterval(() => {
+        const engine = getEngine();
+        if (!engine) return;
+        document.getElementById("infoFrame").textContent = engine.get_frame_count();
+        document.getElementById("infoSize").textContent =
+          engine.get_viewport_w() + "×" + engine.get_viewport_h();
+        document.getElementById("infoCellSize").textContent = currentCellSize + " px";
+        const cid = getChallengeId();
+        document.getElementById("infoChallengeId").textContent =
+          cid ? cid.substring(0, 8) + "…" : "—";
+
+        // Direction gap display
+        const td = engine.get_text_direction();
+        const bd = engine.get_bg_direction();
+        const diff = Math.abs(((td - bd) % 360 + 360) % 360);
+        const gap = Math.round(Math.min(diff, 360 - diff));
+        const gapEl = document.getElementById("infoDirGap");
+        gapEl.textContent = gap + "°";
+        gapEl.style.color = gap < 40 ? "#f87171" : gap < 60 ? "#fbbf24" : "#4ade80";
+
+        // Jitter status
+        const jitterEl = document.getElementById("infoJitter");
+        if (engine.get_jitter_enabled()) {
+          jitterEl.textContent = "±" + engine.get_jitter_magnitude() + " px";
+          jitterEl.style.color = "#4ade80";
+        } else {
+          jitterEl.textContent = "Off";
+          jitterEl.style.color = "#888";
+        }
+
+        // FPS
+        fpsFrames++;
+        const now = performance.now();
+        if (now - fpsLastTime >= 1000) {
+          document.getElementById("infoFps").textContent =
+            Math.round((fpsFrames * 1000) / (now - fpsLastTime));
+          fpsFrames = 0;
+          fpsLastTime = now;
+        }
+      }, 200);
+    }
+
+    // ── Keyboard shortcuts ──
+    document.addEventListener("keydown", (e) => {
+      if (document.activeElement.tagName === "INPUT") return;
+      switch (e.key.toLowerCase()) {
+        case "h":
+          toggleControls();
+          break;
+        case " ":
+          e.preventDefault();
+          pauseBtnEl.click();
+          break;
+        case "r":
+          document.getElementById("randomBtn").click();
+          break;
+      }
+    });
+
+    // ── Verify bar ──
+    document.getElementById("verifyBtn").addEventListener("click", async () => {
+      const resultEl = document.getElementById("verifyResult");
+      resultEl.className = "result-inline";
+      const res = await verify(document.getElementById("verifyInput").value);
+      resultEl.classList.add(res.success ? "ok" : "err");
+      resultEl.textContent = res.success ? "✅ Correct!" : "❌ " + (res.error || "Wrong");
+    });
+
+    document.getElementById("refreshBtn").addEventListener("click", () => {
+      document.getElementById("verifyResult").className = "result-inline";
+      document.getElementById("verifyInput").value = "";
+      const text = document.getElementById("textInput").value || undefined;
+      doInit(text);
+    });
+
+    document.getElementById("verifyInput").addEventListener("keydown", (e) => {
+      e.stopPropagation();
+      if (e.key === "Enter") document.getElementById("verifyBtn").click();
+    });
+
+    // ── Boot ──
+    // Initialize display values
+    for (const key of Object.keys(sliderDefs)) {
+      updateSliderDisplay(key);
+    }
+    doInit();
+  </script>
+</body>
+</html>

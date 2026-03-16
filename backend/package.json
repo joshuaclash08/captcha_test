@@ -1,0 +1,18 @@
+{
+  "name": "noise-captcha-server",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "cp -n .env.development .env 2>/dev/null || true && bun run --watch src/index.ts",
+    "start": "NODE_ENV=production bun run src/index.ts",
+    "start:dev": "DEBUG_MODE=true bun run --watch src/index.ts"
+  },
+  "dependencies": {
+    "@napi-rs/canvas": "^0.1.0",
+    "hono": "^4.0.0",
+    "ioredis": "^5.10.0"
+  },
+  "devDependencies": {
+    "@types/bun": "latest"
+  }
+}

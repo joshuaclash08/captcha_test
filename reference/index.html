@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>You can't screenshot this</title>
+    <style>
+      html,
+      body {
+        height: 100%;
+        margin: 0;
+      }
+      canvas {
+        display: block;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="canvas"></canvas>
+    <script>
+      const canvas = document.getElementById("canvas");
+      const ctx = canvas.getContext("2d", { alpha: false });
+
+      const CELL_SIZE = 2;
+      const STEP_PX = 4;
+      const STEP_MS = 32;
+      const MASK_BLOCK_SIZE = CELL_SIZE;
+      const DIRECTION_DEGREE = 0; // 0=right, 90=down, 180=left, 270=up
+
+      let lastStepTime = 0;
+      let backgroundOffsetX = 0;
+      let backgroundOffsetY = 0;
+      let noiseCanvas = null;
+      let circleTile = null;
+      let offsetY = 0;
+      let maskCanvas = null;
+      let circleBuffer = null;
+      let compositeCanvas = null;
+      let textString = `조현준바보`;
+
+      function createNoisePattern() {
+        // Reuse optimized createNoiseCanvas (3x viewport for seamless scrolling)
+        noiseCanvas = createNoiseCanvas(canvas.clientWidth * 3, canvas.clientHeight * 3);
+      }
+
+      function renderNoise() {
+        if (!noiseCanvas) return;
+        const w = canvas.clientWidth;
+        const h = canvas.clientHeight;
+        // Single draw call - noiseCanvas is 3x viewport size
+        const ox = ((backgroundOffsetX % w) + w) % w;
+        const oy = ((backgroundOffsetY % h) + h) % h;
+        ctx.drawImage(noiseCanvas, -ox, -oy);
+      }
+
+      function getTextFromQuery() {
+        const params = new URLSearchParams(window.location.search);
+        const t = params.get("text");
+        return t;
+      }
+
+      function createNoiseCanvas(width, height) {
+        const off = document.createElement("canvas");
+        off.width = width;
+        off.height = height;
+        const octx = off.getContext("2d", { alpha: false });
+        // Use ImageData for faster bulk pixel writes
+        const imageData = octx.createImageData(width, height);
+        const data = imageData.data;
+        for (let y = 0; y < height; y += CELL_SIZE) {
+          for (let x = 0; x < width; x += CELL_SIZE) {
+            const color = Math.random() < 0.5 ? 0 : 255;
+            for (let dy = 0; dy < CELL_SIZE && y + dy < height; dy++) {
+              for (let dx = 0; dx < CELL_SIZE && x + dx < width; dx++) {
+                const i = ((y + dy) * width + (x + dx)) * 4;
+                data[i] = data[i + 1] = data[i + 2] = color;
+                data[i + 3] = 255;
+              }
+            }
+          }
+        }
+        octx.putImageData(imageData, 0, 0);
+        return off;
+      }
+
+      function createPixelatedTextMask(
+        text,
+        blockSize,
+        viewportWidth,
+        viewportHeight
+      ) {
+        const lines = String(text).split("\n");
+        const scratch = document.createElement("canvas");
+        scratch.width = viewportWidth;
+        scratch.height = viewportHeight;
+        const sctx = scratch.getContext("2d");
+        sctx.imageSmoothingEnabled = false;
+
+        const targetWidth = Math.max(1, Math.floor(viewportWidth * 0.85));
+        const targetHeight = Math.max(1, Math.floor(viewportHeight * 0.6));
+        const lineHeightFactor = 1.2;
+
+        let fontSize = Math.max(
+          8,
+          Math.floor(targetHeight / Math.max(1, lines.length))
+        );
+        for (let i = 0; i < 3; i++) {
+          sctx.font = `900 ${fontSize}px sans-serif`;
+          let maxLineWidth = 1;
+          for (const line of lines) {
+            const w = Math.max(1, sctx.measureText(line).width);
+            if (w > maxLineWidth) maxLineWidth = w;
+          }
+          const totalHeight = Math.max(
+            1,
+            Math.ceil(lines.length * fontSize * lineHeightFactor)
+          );
+          const scaleX = targetWidth / maxLineWidth;
+          const scaleY = targetHeight / totalHeight;
+          const scale = Math.min(scaleX, scaleY, 1);
+          fontSize = Math.max(8, Math.floor(fontSize * scale));
+        }
+
+        sctx.clearRect(0, 0, scratch.width, scratch.height);
+        sctx.font = `900 ${fontSize}px sans-serif`;
+        sctx.textAlign = "center";
+        sctx.textBaseline = "middle";
+        sctx.fillStyle = "#000";
+        const centerX = Math.floor(viewportWidth / 2);
+        const centerY = Math.floor(viewportHeight / 2);
+        const spacing = Math.ceil(fontSize * lineHeightFactor);
+        const startY = Math.floor(centerY - ((lines.length - 1) * spacing) / 2);
+        for (let i = 0; i < lines.length; i++) {
+          sctx.fillText(lines[i], centerX, startY + i * spacing);
+        }
+
+        const img = sctx.getImageData(0, 0, scratch.width, scratch.height);
+        const data = img.data;
+        const w = img.width;
+        const h = img.height;
+        let minX = w,
+          minY = h,
+          maxX = 0,
+          maxY = 0;
+        for (let y = 0; y < h; y++) {
+          for (let x = 0; x < w; x++) {
+            const a = data[(y * w + x) * 4 + 3];
+            if (a > 0) {
+              if (x < minX) minX = x;
+              if (y < minY) minY = y;
+              if (x > maxX) maxX = x;
+              if (y > maxY) maxY = y;
+            }
+          }
+        }
+        if (maxX < minX || maxY < minY) {
+          const empty = document.createElement("canvas");
+          empty.width = blockSize;
+          empty.height = blockSize;
+          return empty;
+        }
+
+        // Align bounds to the pixel grid defined by blockSize
+        const alignedMinX = Math.floor(minX / blockSize) * blockSize;
+        const alignedMinY = Math.floor(minY / blockSize) * blockSize;
+        const rawWidth = maxX - alignedMinX + 1;
+        const rawHeight = maxY - alignedMinY + 1;
+        const alignedWidth = Math.ceil(rawWidth / blockSize) * blockSize;
+        const alignedHeight = Math.ceil(rawHeight / blockSize) * blockSize;
+
+        const mask = document.createElement("canvas");
+        mask.width = alignedWidth;
+        mask.height = alignedHeight;
+        const mctx = mask.getContext("2d");
+        mctx.imageSmoothingEnabled = false;
+        mctx.clearRect(0, 0, alignedWidth, alignedHeight);
+        mctx.fillStyle = "#000";
+
+        for (let y = 0; y < alignedHeight; y += blockSize) {
+          for (let x = 0; x < alignedWidth; x += blockSize) {
+            const sx = alignedMinX + x + Math.floor(blockSize / 2);
+            const sy = alignedMinY + y + Math.floor(blockSize / 2);
+            if (sx >= 0 && sy >= 0 && sx < w && sy < h) {
+              const a = data[(sy * w + sx) * 4 + 3];
+              if (a > 0) {
+                mctx.fillRect(x, y, blockSize, blockSize);
+              }
+            }
+          }
+        }
+
+        return mask;
+      }
+
+      function resizeCanvasToViewport() {
+        const dpr = window.devicePixelRatio || 1;
+        const width = Math.ceil(window.innerWidth);
+        const height = Math.ceil(window.innerHeight);
+
+        canvas.style.width = width + "px";
+        canvas.style.height = height + "px";
+        canvas.width = Math.ceil(width * dpr);
+        canvas.height = Math.ceil(height * dpr);
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        ctx.imageSmoothingEnabled = false;
+
+        createNoisePattern();
+        renderNoise();
+        // Create text mask and matching noise tile/buffers
+        maskCanvas = createPixelatedTextMask(
+          textString,
+          MASK_BLOCK_SIZE,
+          canvas.clientWidth,
+          canvas.clientHeight
+        );
+        circleTile = createNoiseCanvas(maskCanvas.width, maskCanvas.height);
+        circleBuffer = document.createElement("canvas");
+        circleBuffer.width = maskCanvas.width;
+        circleBuffer.height = maskCanvas.height;
+        compositeCanvas = document.createElement("canvas");
+        compositeCanvas.width = maskCanvas.width;
+        compositeCanvas.height = maskCanvas.height;
+        // Draw an initial frame of the moving text
+        drawMovingCircle();
+      }
+
+      window.addEventListener("resize", resizeCanvasToViewport);
+      resizeCanvasToViewport();
+
+      function drawMovingCircle() {
+        if (!maskCanvas || !circleTile || !circleBuffer || !compositeCanvas) return;
+        const width = canvas.clientWidth;
+        const height = canvas.clientHeight;
+        const cx = Math.floor(width / 2);
+        const cy = Math.floor(height / 2);
+
+        // Align the text to the grid
+        const left =
+          Math.round((cx - maskCanvas.width / 2) / MASK_BLOCK_SIZE) *
+          MASK_BLOCK_SIZE;
+        const top =
+          Math.round((cy - maskCanvas.height / 2) / MASK_BLOCK_SIZE) *
+          MASK_BLOCK_SIZE;
+
+        // Render the moving noise into the circle buffer
+        const bufCtx = circleBuffer.getContext("2d");
+        bufCtx.imageSmoothingEnabled = false;
+        bufCtx.clearRect(0, 0, circleBuffer.width, circleBuffer.height);
+        const tileH = circleTile.height;
+        const startY = -tileH + (offsetY % tileH);
+        for (let y = startY; y < circleBuffer.height; y += tileH) {
+          bufCtx.drawImage(circleTile, 0, y);
+        }
+
+        // Apply the pixelated circular mask in a separate composite canvas
+        const compCtx = compositeCanvas.getContext("2d");
+        compCtx.imageSmoothingEnabled = false;
+        compCtx.globalCompositeOperation = "copy";
+        compCtx.drawImage(circleBuffer, 0, 0);
+        compCtx.globalCompositeOperation = "destination-in";
+        compCtx.drawImage(maskCanvas, 0, 0);
+        compCtx.globalCompositeOperation = "source-over";
+
+        // Draw the composited result onto the main canvas
+        ctx.drawImage(compositeCanvas, left, top);
+      }
+
+      function animate(ts) {
+        if (lastStepTime === 0) lastStepTime = ts;
+        if (ts - lastStepTime >= STEP_MS) {
+          // Convert degree to radians and calculate movement vector
+          const radian = (DIRECTION_DEGREE * Math.PI) / 180;
+          const deltaX = Math.cos(radian) * STEP_PX;
+          const deltaY = Math.sin(radian) * STEP_PX;
+
+          backgroundOffsetX = Math.floor(backgroundOffsetX + deltaX);
+          backgroundOffsetY = Math.floor(backgroundOffsetY + deltaY);
+          offsetY = Math.floor(offsetY + STEP_PX);
+          lastStepTime = ts;
+        }
+
+        renderNoise();
+        drawMovingCircle();
+        requestAnimationFrame(animate);
+      }
+
+      requestAnimationFrame(animate);
+
+      // Initialize from URL query if present
+      const initialFromQuery = getTextFromQuery();
+      if (initialFromQuery !== null) {
+        textString = initialFromQuery;
+        rebuildTextResources();
+      }
+
+      // Keep in sync with browser navigation
+      window.addEventListener("popstate", () => {
+        const t = getTextFromQuery();
+        textString = t || "";
+        rebuildTextResources();
+      });
+
+      function rebuildTextResources() {
+        maskCanvas = createPixelatedTextMask(
+          textString,
+          MASK_BLOCK_SIZE,
+          canvas.clientWidth,
+          canvas.clientHeight
+        );
+        circleTile = createNoiseCanvas(maskCanvas.width, maskCanvas.height);
+        circleBuffer = document.createElement("canvas");
+        circleBuffer.width = maskCanvas.width;
+        circleBuffer.height = maskCanvas.height;
+        compositeCanvas = document.createElement("canvas");
+        compositeCanvas.width = maskCanvas.width;
+        compositeCanvas.height = maskCanvas.height;
+      }
+    </script>
+  </body>
+</html>
