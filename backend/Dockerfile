@@ -5,7 +5,7 @@
 # Multi-stage build for minimal production image.
 # Uses Bun runtime for optimal performance.
 
-FROM oven/bun:1.1-alpine AS base
+FROM oven/bun:1.2-alpine AS base
 
 WORKDIR /app
 
@@ -16,12 +16,10 @@ FROM base AS deps
 COPY package.json bun.lock* ./
 
 # Install server dependencies
-RUN bun install --frozen-lockfile --production
+RUN bun install --production
 
 # ─── Build WASM (if needed) ─────────────────────────────────────
-FROM rust:1.75-alpine AS wasm-builder
-
-RUN apk add --no-cache musl-dev
+FROM rust:slim AS wasm-builder
 
 # Install wasm-pack
 RUN cargo install wasm-pack
@@ -30,6 +28,7 @@ WORKDIR /app/wasm
 COPY wasm/ .
 
 # Build WASM
+RUN mkdir -p ../public/pkg
 RUN wasm-pack build --release --target web --out-dir ../public/pkg
 
 # ─── Production image ───────────────────────────────────────────

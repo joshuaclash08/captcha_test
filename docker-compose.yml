@@ -4,6 +4,8 @@ services:
   redis:
     image: redis:alpine
     container_name: captcha-redis
+    networks:
+      - proxy
     ports:
       - "6379:6379"
     restart: always
@@ -21,9 +23,10 @@ services:
       - PORT=3000
       - REDIS_URL=redis://redis:6379
       - SITE_REGISTRY_PATH=./data/sites.json
+      - ALLOWED_ORIGINS=*
       # IMPORTANT: Replace these dummy AES keys with your real 64-character hex keys in production!
-      - AES_KEY_SEED=nc_sk_bce9aa9b19b26456ab605619061d1ec4f15952aba1006c6c86a4754aaf1305a4
-      - AES_KEY_MASK=nc_sk_bce9aa9b19b26456ab605619061d1ec4f15952aba1006c6c86a4714aaf1305a5
+      - AES_KEY_SEED=1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef
+      - AES_KEY_MASK=fedcba0987654321fedcba0987654321fedcba0987654321fedcba0987654321
     depends_on:
       - redis
     labels:
