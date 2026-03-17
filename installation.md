@@ -2,9 +2,7 @@
 This guide explains how to build and deploy the complete Noise CAPTCHA application using `docker-compose`.
 
 ## Features
-- **Multi-Architecture Support**: The backend Dockerfile uses `--platform=$BUILDPLATFORM` for the Rust/WASM builder so it will cross-compile seamlessly on both ARM64 (like Apple Silicon / AWS Graviton) and AMD64 architectures natively.
-- **Resolution Protocol Alpha**: The WASM compilation stage is explicitly pinned to `rust:1.88-slim`, ensuring a standardized glibc environment. This definitively prevents the `os error 2` dynamic linker ABI mismatch that occurs when executing pre-compiled binaries within strict Alpine/musl containers on aarch64 hardware.
-- **Reference Script Integration**: We natively execute `scripts/build-wasm.sh` during the backend builder stage to guarantee a perfectly reproducible `engine.wasm` asset output just like your local builds.
+- **Ultra-Fast Builds**: The backend Dockerfile bypasses runtime Rust/WASM compilation entirely, instantly injecting the pre-compiled `engine.js` and `engine.wasm` assets. This guarantees perfect Alpine compatibility and instantaneous container builds.
 - **Unified Services**: Frontend, Backend, and Redis instances run securely within a single isolated Docker network.
 - **Traefik Ready**: Out of the box annotations designed for Traefik to handle your domain and SSL automatically.
 
@@ -29,7 +27,7 @@ docker-compose up -d --build
 
 Docker will:
 1. Pull the Redis image.
-2. Build the `captcha-backend` image (this compiles the WASM using your local `scripts/build-wasm.sh` and packages it into the Bun runtime server).
+2. Build the `captcha-backend` image (this packages the pre-compiled WASM assets into the Bun runtime server).
 3. Build the `captcha-frontend` image (this builds the Vite app and runs it via our custom `server.ts` bun script).
 
 ### 3. Verification
@@ -42,6 +40,14 @@ Verify the backend logs to ensure it successfully connected to Redis and validat
 ```bash
 docker-compose logs -f backend
 ```
+
+## Developing the engine (Optional)
+If you make code changes to the Rust engine and need to rebuild the WASM assets before deploying:
+```bash
+cd backend
+./scripts/build-wasm.sh
+```
+This updates the static assets in `backend/public`, which will then be automatically used on your next `docker-compose build`.
 
 ## Stopping the Server
 To shut down the entire stack safely:
