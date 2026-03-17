@@ -1,4 +1,4 @@
-import { defineConfig } from 'vite'
+import { defineConfig, loadEnv } from 'vite'
 import type { Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
@@ -17,10 +17,16 @@ function isVerifyResponse(value: unknown): value is VerifyResponse {
 }
 
 // Vite 개발 서버 내에서 가짜 백엔드 API 역할을 해주는 커스텀 플러그인
-function demoBackendPlugin(): Plugin {
+function demoBackendPlugin(mode: string): Plugin {
   return {
     name: 'demo-backend',
     configureServer(server) {
+      const env = loadEnv(mode, process.cwd(), '');
+      const baseUrl = env.VITE_API_BASE_URL || 'http://localhost:3000';
+      const validateUrl = baseUrl.endsWith('/') 
+        ? `${baseUrl}api/captcha/validate-token`
+        : `${baseUrl}/api/captcha/validate-token`;
+
       server.middlewares.use('/demo/signup', (req, res, next) => {
         if (req.method !== 'POST') return next();
 
@@ -45,7 +51,7 @@ function demoBackendPlugin(): Plugin {
             }
 
             // 데모 사이트의 Vite 서버가 진짜 캡챠 서버로 시크릿키를 포함해 검증 요청
-            const verifyRes = await fetch("https://captcha.sharingurl.com/api/captcha/validate-token", {
+            const verifyRes = await fetch(validateUrl, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
@@ -80,9 +86,9 @@ function demoBackendPlugin(): Plugin {
 }
 
 // https://vite.dev/config/
-export default defineConfig({
-  plugins: [react(), tailwindcss(), demoBackendPlugin()],
+export default defineConfig(({ mode }) => ({
+  plugins: [react(), tailwindcss(), demoBackendPlugin(mode)],
   server: { 
     port: 5173
   }
-})
+}))

@@ -27,7 +27,10 @@ declare global {
 }
 
 const SCRIPT_ID = 'noise-captcha-render-script';
-const RENDER_SCRIPT_URL = 'http://192.168.45.24:3000/captcha-render.js';
+const getRenderScriptUrl = () => {
+  const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+  return baseUrl.endsWith('/') ? `${baseUrl}captcha-render.js` : `${baseUrl}/captcha-render.js`;
+};
 
 interface NoiseProofPreviewProps {
   siteKey: string;
@@ -69,7 +72,7 @@ export default function NoiseProofPreview({ siteKey }: NoiseProofPreviewProps) {
         if (!script) {
           script = document.createElement('script');
           script.id = SCRIPT_ID;
-          script.src = RENDER_SCRIPT_URL;
+          script.src = getRenderScriptUrl();
           script.async = true;
           document.body.appendChild(script);
           await new Promise<void>((resolve, reject) => {

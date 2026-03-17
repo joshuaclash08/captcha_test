@@ -45,8 +45,8 @@ export default function NoiseCaptcha({ siteKey, theme = 'dark', action, onVerify
     if (!script) {
       script = document.createElement('script');
       script.id = scriptId;
-      // script.src = 'http://localhost:3000/captcha.js';
-      script.src = 'https://captcha.sharingurl.com/captcha.js';
+      const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+      script.src = baseUrl.endsWith('/') ? `${baseUrl}captcha.js` : `${baseUrl}/captcha.js`;
       script.async = true;
       document.body.appendChild(script);
     }
