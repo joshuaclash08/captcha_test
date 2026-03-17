@@ -55,6 +55,7 @@ services:
       - "traefik.http.routers.captcha-frontend.entrypoints=websecure"
       - "traefik.http.routers.captcha-frontend.tls=true"
       - "traefik.http.routers.captcha-frontend.tls.certresolver=cloudflare"
+
 networks:
   proxy:
     external: true
