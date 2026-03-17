@@ -2,12 +2,26 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-# Load optional env for key material injection at build time.
-if [[ -f ./.env ]]; then
-    set -a
-    # shellcheck disable=SC1091
-    source ./.env
-    set +a
+# Enforce .env presence and load it
+if [[ ! -f ./.env ]]; then
+    echo "❌ Error: backend/.env file is missing. Please create it and configure AES_KEY_SEED and AES_KEY_MASK."
+    exit 1
+fi
+
+set -a
+# shellcheck disable=SC1091
+source ./.env
+set +a
+
+# Validate keys
+if [[ -z "${AES_KEY_SEED:-}" ]] || [[ "${#AES_KEY_SEED}" -ne 64 ]]; then
+    echo "❌ Error: AES_KEY_SEED is missing or not 64 characters in .env"
+    exit 1
+fi
+
+if [[ -z "${AES_KEY_MASK:-}" ]] || [[ "${#AES_KEY_MASK}" -ne 64 ]]; then
+    echo "❌ Error: AES_KEY_MASK is missing or not 64 characters in .env"
+    exit 1
 fi
 
 echo "=== Building WASM (release) ==="

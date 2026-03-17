@@ -7,19 +7,7 @@ use aes_gcm::{
 /// In production, these should be overridden at compile time with:
 /// - AES_KEY_SEED_HEX
 /// - AES_KEY_MASK_HEX
-const DEFAULT_KEY_SEED: [u8; 32] = [
-    0xA3, 0x7B, 0x12, 0xDE, 0x45, 0x9F, 0x01, 0xC8,
-    0x67, 0x3A, 0xEE, 0x54, 0xB1, 0x0D, 0x82, 0xF6,
-    0x29, 0x73, 0xC4, 0x5E, 0x90, 0x1A, 0xDB, 0x47,
-    0xF8, 0x6C, 0x35, 0xA9, 0x0E, 0xB7, 0x64, 0x21,
-];
-
-const DEFAULT_KEY_MASK: [u8; 32] = [
-    0xF1, 0x2C, 0x59, 0x8A, 0x03, 0xD7, 0x6E, 0xB5,
-    0x34, 0x48, 0xAD, 0x16, 0xE3, 0x5F, 0xC0, 0x92,
-    0x7D, 0x31, 0x86, 0x0B, 0xF4, 0x6A, 0x99, 0x05,
-    0xBA, 0x2E, 0x77, 0xE1, 0x4C, 0xD5, 0x28, 0x63,
-];
+// No default key fallbacks allowed. Keys must be injected at build-time.
 
 const KEY_SEED_HEX: &str = match option_env!("AES_KEY_SEED_HEX") {
     Some(v) => v,
@@ -75,8 +63,8 @@ fn derive_key_from(seed: &[u8; 32], mask: &[u8; 32]) -> [u8; 32] {
 
 /// Derives the active AES-256 key by XORing SEED and MASK.
 fn derive_key() -> [u8; 32] {
-    let seed = parse_hex_32(KEY_SEED_HEX).unwrap_or(DEFAULT_KEY_SEED);
-    let mask = parse_hex_32(KEY_MASK_HEX).unwrap_or(DEFAULT_KEY_MASK);
+    let seed = parse_hex_32(KEY_SEED_HEX).expect("AES_KEY_SEED is missing or invalid at build time");
+    let mask = parse_hex_32(KEY_MASK_HEX).expect("AES_KEY_MASK is missing or invalid at build time");
     derive_key_from(&seed, &mask)
 }
 

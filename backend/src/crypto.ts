@@ -6,33 +6,19 @@ import { ENV } from "./env";
  * Must match the XOR-derived key in wasm/src/decrypt.rs:
  *   KEY[i] = KEY_SEED[i] ^ KEY_MASK[i]
  * 
- * Production: Set AES_KEY_SEED and AES_KEY_MASK environment variables
- * Development: Uses hardcoded default keys (DO NOT USE IN PRODUCTION)
+ * Production & Development: Must set AES_KEY_SEED and AES_KEY_MASK environment variables
+ * No hardcoded defaults are allowed since WASM expects injected keys.
  */
-const DEFAULT_KEY_SEED = Buffer.from([
-  0xa3, 0x7b, 0x12, 0xde, 0x45, 0x9f, 0x01, 0xc8, 0x67, 0x3a, 0xee, 0x54,
-  0xb1, 0x0d, 0x82, 0xf6, 0x29, 0x73, 0xc4, 0x5e, 0x90, 0x1a, 0xdb, 0x47,
-  0xf8, 0x6c, 0x35, 0xa9, 0x0e, 0xb7, 0x64, 0x21,
-]);
-
-const DEFAULT_KEY_MASK = Buffer.from([
-  0xf1, 0x2c, 0x59, 0x8a, 0x03, 0xd7, 0x6e, 0xb5, 0x34, 0x48, 0xad, 0x16,
-  0xe3, 0x5f, 0xc0, 0x92, 0x7d, 0x31, 0x86, 0x0b, 0xf4, 0x6a, 0x99, 0x05,
-  0xba, 0x2e, 0x77, 0xe1, 0x4c, 0xd5, 0x28, 0x63,
-]);
 
 function getKeys(): { seed: Buffer; mask: Buffer } {
-  if (ENV.IS_PRODUCTION && (!ENV.AES_KEY_SEED || !ENV.AES_KEY_MASK)) {
-    throw new Error("AES_KEY_SEED and AES_KEY_MASK must be set in production");
+  if (!ENV.AES_KEY_SEED || !ENV.AES_KEY_MASK) {
+    throw new Error("AES_KEY_SEED and AES_KEY_MASK environment variables are required.");
   }
 
-  if (ENV.AES_KEY_SEED && ENV.AES_KEY_MASK) {
-    return {
-      seed: Buffer.from(ENV.AES_KEY_SEED, "hex"),
-      mask: Buffer.from(ENV.AES_KEY_MASK, "hex"),
-    };
-  }
-  return { seed: DEFAULT_KEY_SEED, mask: DEFAULT_KEY_MASK };
+  return {
+    seed: Buffer.from(ENV.AES_KEY_SEED, "hex"),
+    mask: Buffer.from(ENV.AES_KEY_MASK, "hex"),
+  };
 }
 
 const { seed: KEY_SEED, mask: KEY_MASK } = getKeys();

@@ -4,6 +4,7 @@ node_modules/
 # Build outputs
 dist/
 *.wasm
+backend/wasm/target/
 
 # IDE
 .vscode/
@@ -14,8 +15,8 @@ dist/
 !.env.example
 
 # Data files (contains generated keys)
-server/data/
-data/
+backend/data/*
+!backend/data/sites.json.example
 
 # OS files
 .DS_Store

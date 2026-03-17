@@ -24,9 +24,6 @@ services:
       - REDIS_URL=redis://redis:6379
       - SITE_REGISTRY_PATH=./data/sites.json
       - ALLOWED_ORIGINS=*
-      # IMPORTANT: Replace these dummy AES keys with your real 64-character hex keys in production!
-      - AES_KEY_SEED=1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef
-      - AES_KEY_MASK=fedcba0987654321fedcba0987654321fedcba0987654321fedcba0987654321
     depends_on:
       - redis
     labels:

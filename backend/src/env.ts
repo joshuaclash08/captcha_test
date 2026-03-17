@@ -124,14 +124,14 @@ export function validateEnv(): void {
     if (ENV.DEBUG_MODE) {
       errors.push("DEBUG_MODE must be false in production!");
     }
-    
-    // AES Keys
-    if (!ENV.AES_KEY_SEED || !ENV.AES_KEY_MASK) {
-      errors.push("AES_KEY_SEED and AES_KEY_MASK are required in production");
-    } else {
-      if (!isHex32(ENV.AES_KEY_SEED) || !isHex32(ENV.AES_KEY_MASK)) {
-        errors.push("AES_KEY_SEED and AES_KEY_MASK must be 64-char hex strings in production");
-      }
+  }
+
+  // AES Keys (Required in all environments now)
+  if (!ENV.AES_KEY_SEED || !ENV.AES_KEY_MASK) {
+    errors.push("AES_KEY_SEED and AES_KEY_MASK are required");
+  } else {
+    if (!isHex32(ENV.AES_KEY_SEED) || !isHex32(ENV.AES_KEY_MASK)) {
+      errors.push("AES_KEY_SEED and AES_KEY_MASK must be 64-char hex strings");
     }
   }
 

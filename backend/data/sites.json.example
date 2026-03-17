@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "sites": [
+    {
+      "siteKey": "nc_pk_YOUR_SITE_KEY_HERE",
+      "secretKey": "nc_sk_YOUR_SECRET_KEY_HERE",
+      "domains": [
+        "localhost",
+        "127.0.0.1",
+        "example.com"
+      ],
+      "name": "Demo Site",
+      "settings": {
+        "rateLimitChallenge": 20,
+        "rateLimitVerify": 10,
+        "allowLocalhost": true,
+        "tokenExpirySeconds": 120
+      },
+      "createdAt": 1700000000000,
+      "active": true
+    }
+  ]
+}
