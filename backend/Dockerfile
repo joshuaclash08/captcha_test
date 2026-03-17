@@ -24,7 +24,7 @@ RUN bun install --frozen-lockfile --production
 FROM --platform=$BUILDPLATFORM rust:slim AS wasm-builder
 
 # Install required system packages for building wasm-bindgen inside wasm-pack
-RUN apt-get update && apt-get install -y pkg-config libssl-dev curl
+RUN apt-get update && apt-get install -y pkg-config libssl-dev curl gcc build-essential libc6-dev
 
 # Install wasm-pack
 RUN cargo install wasm-pack
