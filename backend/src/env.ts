@@ -89,6 +89,10 @@ export const ENV = {
   SECURITY_AUDIT_DAILY_ROLLING: getEnvBoolean("SECURITY_AUDIT_DAILY_ROLLING", true),
   SECURITY_AUDIT_STRICT: getEnvBoolean("SECURITY_AUDIT_STRICT", false),
   INSTANCE_ID: getEnv("INSTANCE_ID", "local"),
+
+  // Redis error log
+  ENABLE_REDIS_ERROR_LOG: getEnvBoolean("ENABLE_REDIS_ERROR_LOG", true),
+  REDIS_ERROR_LOG_PATH: process.env.REDIS_ERROR_LOG_PATH,
   
   // Logging
   LOG_LEVEL: getEnv("LOG_LEVEL", "info"),
@@ -178,4 +182,5 @@ export function logEnvInfo(): void {
   console.log(`   REDIS_URL: ${ENV.REDIS_URL || "redis://localhost:6379 (default)"}`);
   console.log(`   SECURITY_AUDIT_LOG: ${ENV.ENABLE_SECURITY_AUDIT_LOG ? "enabled" : "disabled"}`);
   console.log(`   SECURITY_AUDIT_DAILY_ROLLING: ${ENV.SECURITY_AUDIT_DAILY_ROLLING}`);
+  console.log(`   REDIS_ERROR_LOG: ${ENV.ENABLE_REDIS_ERROR_LOG ? "enabled" : "disabled"}`);
 }
