@@ -16,12 +16,14 @@ import {
 } from "./sites";
 import { assessRisk, getRiskBucketCount, recordRiskEvent } from "./risk-score";
 import { validateSecurityAuditSink, writeSecurityAudit } from "./security-audit";
+import { validateRedisErrorLogSink } from "./redis-error-log";
 import { join } from "path";
 
 // Validate environment on startup
 validateEnv();
 logEnvInfo();
 validateSecurityAuditSink();
+validateRedisErrorLogSink();
 
 // Verify AES key round-trip (ensures WASM will be able to decrypt)
 if (!verifyKeySync()) {
